@@ -16,7 +16,7 @@ app = FastAPI()
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-def search_icarros(driver: webdriver.Chrome, car_name: str) -> List[dict]:
+def search_icarros(driver: webdriver.Chrome, car_marca: str) -> List[dict]:
     max_retries = 5
     attempt = 0
 
@@ -26,7 +26,7 @@ def search_icarros(driver: webdriver.Chrome, car_name: str) -> List[dict]:
             model_input = WebDriverWait(driver, 10).until(
                 EC.presence_of_element_located((By.XPATH, '//*[@id="modelo"]'))
             )
-            model_input.send_keys(car_name)
+            model_input.send_keys(car_marca)
             search_button = driver.find_element(By.XPATH, '//*[@id="buscaForm"]/div[2]/button')
             search_button.send_keys(Keys.ENTER)
 
@@ -43,14 +43,14 @@ def search_icarros(driver: webdriver.Chrome, car_name: str) -> List[dict]:
             while results_header and price_containers:
                 try:
                     result_header = results_header.pop(0)
-                    car_name_element = result_header.find_element(By.XPATH,
+                    car_marca_element = result_header.find_element(By.XPATH,
                                                                   './/p[contains(@class, "label__onLight ids_textStyle_label_medium_bold")]')
-                    car_name = car_name_element.text.strip()
-                    if car_name:
+                    car_marca = car_marca_element.text.strip()
+                    if car_marca:
                         car_model_element = result_header.find_element(By.XPATH,
                                                                        './/p[contains(@class, "label__neutral ids_textStyle_label_xsmall_regular")]')
                         car_model = car_model_element.text.strip()
-                        car_names.append(f"{car_name} {car_model}")
+                        car_names.append(f"{car_marca} {car_model}")
                 except Exception as e:
                     logger.error(f"Error processing result header: {e}")
 
@@ -79,17 +79,17 @@ def search_icarros(driver: webdriver.Chrome, car_name: str) -> List[dict]:
 
         attempt += 1
         logger.info(f"Retrying... Attempt {attempt}/{max_retries}")
-        time.sleep(5)  # Espera antes de tentar novamente
+        time.sleep(5)  # Wait before retrying
 
     return []
 
-def search_napista(driver: webdriver.Chrome, car_name: str, car_model: str) -> List[dict]:
+def search_napista(driver: webdriver.Chrome, car_model: str, car_marca: str) -> List[dict]:
     max_retries = 5
     attempt = 0
 
     while attempt < max_retries:
         try:
-            url = f'https://napista.com.br/busca/{car_model}-{car_name}'
+            url = f'https://napista.com.br/busca/{car_model}-{car_marca}'
 
             driver.get(url)
             time.sleep(3)
@@ -140,27 +140,20 @@ def search_napista(driver: webdriver.Chrome, car_name: str, car_model: str) -> L
 
         attempt += 1
         logger.info(f"Retrying... Attempt {attempt}/{max_retries}")
-        time.sleep(5)  # Espera antes de tentar novamente
+        time.sleep(5)  # Wait before retrying
 
     return []
 
-def search_autoline(driver: webdriver.Chrome, car_name: str, car_model: str) -> List[dict]:
+def search_autoline(driver: webdriver.Chrome, car_model: str, car_marca: str) -> List[dict]:
     max_retries = 5
     attempt = 0
 
     while attempt < max_retries:
         try:
-            url = f'https://www.autoline.com.br/comprar/carros/novos-seminovos-usados/todos-os-estados/todas-as-cidades/{car_model}/{car_name}/todas-as-versoes/todos-os-anos/todas-as-cores/todos-os-precos?geofilter=0'
+            url = f'https://www.autoline.com.br/comprar/carros/novos-seminovos-usados/todos-os-estados/todas-as-cidades/{car_model}/{car_marca}/todas-as-versoes/todos-os-anos/todas-as-cores/todos-os-precos?geofilter=0'
 
             driver.get(url)
             time.sleep(3)
-            """search_input = WebDriverWait(driver, 10).until(
-                EC.presence_of_element_located((By.XPATH, '/html/body/div[1]/app-root/app-search-result-vehicles/div/div[2]/div[2]/div[1]/app-filter-field/div/div[2]/app-collapsible-field[2]/div/div[2]/div/div[3]/input-select/div/input'))
-            )
-            search_input.send_keys(search_term)
-            search_input.send_keys(Keys.ENTER)"""
-
-            time.sleep(2)
 
             car_names = []
             car_prices = []
@@ -208,32 +201,95 @@ def search_autoline(driver: webdriver.Chrome, car_name: str, car_model: str) -> 
 
         attempt += 1
         logger.info(f"Retrying... Attempt {attempt}/{max_retries}")
-        time.sleep(5)  # Espera antes de tentar novamente
+        time.sleep(5)  # Wait before retrying
+
+    return []
+
+def search_olx(driver: webdriver.Chrome, car_model) -> List[dict]:
+    max_retries = 5
+    attempt = 0
+
+    while attempt < max_retries:
+        try:
+            url = f'https://www.olx.com.br/autos-e-pecas/carros-vans-e-utilitarios?q={car_model}'
+            driver.get(url)
+            time.sleep(3)
+
+            car_names = []
+            car_prices = []
+
+            while True:
+                try:
+                    results_olx = driver.find_elements(By.XPATH,
+                                                       '//section[contains(@class, "olx-ad-card olx-ad-card--vertical")]')
+
+                    if results_olx:
+                        for olx_result in results_olx:
+                            try:
+                                olx_car_name = olx_result.find_element(By.XPATH,
+                                                                       './/h2[contains(@class, "olx-text olx-text--title-small olx-text--block olx-ad-card__title olx-ad-card__title--vertical")]').text
+                                olx_car_price = olx_result.find_element(By.XPATH,
+                                                                        './/h3[contains(@class, "olx-text olx-text--body-large olx-text--block olx-text--semibold olx-ad-card__price")]').text
+
+                                car_names.append(olx_car_name)
+                                car_prices.append(olx_car_price)
+
+                            except StaleElementReferenceException:
+                                logger.error("Encountered StaleElementReferenceException. Retrying...")
+                                break
+
+                            except Exception as e:
+                                logger.error(f"An error occurred while processing olx result: {e}")
+
+                        return [{"name": name, "price": price} for name, price in zip(car_names, car_prices)]
+
+                    else:
+                        logger.info("No results found. Retrying...")
+                        time.sleep(2)
+
+                except StaleElementReferenceException:
+                    logger.error("Encountered StaleElementReferenceException outside. Retrying...")
+                    time.sleep(2)
+
+                except Exception as e:
+                    logger.error(f"An error occurred: {e}")
+                    time.sleep(2)
+
+        except NoSuchElementException as e:
+            logger.error(f"Element not found: {e}")
+        except Exception as e:
+            logger.error(f"Error in search_olx attempt {attempt}: {e}")
+
+        attempt += 1
+        logger.info(f"Retrying... Attempt {attempt}/{max_retries}")
+        time.sleep(5)  # Wait before retrying
 
     return []
 
 @app.get("/data")
-async def get_data(car_model: str = Query(..., description="Modelo do carro"),car_name: str = Query(..., description="Nome do carro")):
+async def get_data(car_marca: str = Query(..., description="Marca do carro"),car_model: str = Query(..., description="Modelo do carro")):
     try:
         chrome_options = webdriver.ChromeOptions()
-        chrome_options.add_argument("--headless")
+        #chrome_options.add_argument("--headless")
         chrome_options.add_argument("--no-sandbox")
         chrome_options.add_argument("--disable-dev-shm-usage")
 
         while True:
             driver = webdriver.Chrome(service=ChromeService(ChromeDriverManager().install()), options=chrome_options)
 
-            icarros_results = search_icarros(driver, car_model)
-            napista_results = search_napista(driver, car_model, car_name)
-            autoline_results = search_autoline(driver, car_model, car_name)
+            icarros_results = search_icarros(driver, car_marca)
+            napista_results = search_napista(driver, car_model, car_marca)
+            autoline_results = search_autoline(driver, car_model, car_marca)
+            olx_results = search_olx(driver, car_model)
 
             driver.quit()
 
-            if icarros_results and napista_results and autoline_results:
+            if icarros_results and napista_results and autoline_results and olx_results:
                 return {
                     "icarros_results": icarros_results,
                     "napista_results": napista_results,
-                    "autoline_results": autoline_results
+                    "autoline_results": autoline_results,
+                    "olx_results": olx_results
                 }
             else:
                 logger.info("Retrying data retrieval as not all results are present.")
@@ -242,3 +298,4 @@ async def get_data(car_model: str = Query(..., description="Modelo do carro"),ca
     except Exception as e:
         logger.error(f"Error in get_data: {e}")
         raise HTTPException(status_code=500, detail="Internal Server Error")
+
