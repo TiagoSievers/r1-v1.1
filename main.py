@@ -1,6 +1,6 @@
 from typing import List
 from selenium import webdriver
-from fastapi import FastAPI
+from fastapi import FastAPI, Query
 from selenium.webdriver.chrome.service import Service as ChromeService
 from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.common.by import By
@@ -8,7 +8,7 @@ from selenium.webdriver.common.keys import Keys
 
 app = FastAPI()
 
-def download_selenium() -> List[dict]:
+def download_selenium(model: str) -> List[dict]:
     chrome_options = webdriver.ChromeOptions()
     chrome_options.add_argument("--headless")
     chrome_options.add_argument("--no-sandbox")
@@ -16,18 +16,20 @@ def download_selenium() -> List[dict]:
     driver = webdriver.Chrome(service=ChromeService(ChromeDriverManager().install()), options=chrome_options)
     driver.get('https://www.icarros.com.br/principal/index.jsp')
     model_input = driver.find_element(By.XPATH, '//*[@id="modelo"]')
-    model_input.send_keys("Opala")
+    model_input.send_keys(model)
     search_button = driver.find_element(By.XPATH, '//*[@id="buscaForm"]/div[2]/button')
     search_button.send_keys(Keys.ENTER)
     driver.implicitly_wait(10)
 
     results_header = driver.find_elements(By.XPATH, '//div[contains(@class, "offer-card__header")]')
+    price_containers = driver.find_elements(By.XPATH, '//div[contains(@class, "offer-card__price")]')
 
     car_names = []
     car_prices = []
 
-    for result_header in results_header:
+    while results_header and price_containers:
         try:
+            result_header = results_header.pop(0)
             car_name_element = result_header.find_element(By.XPATH,
                                                           './/p[contains(@class, "label__onLight ids_textStyle_label_medium_bold")]')
             car_name = car_name_element.text.strip()  # Remove espaços em branco extras
@@ -39,10 +41,8 @@ def download_selenium() -> List[dict]:
         except Exception as e:
             print(f"An error occurred while processing result header: {e}")
 
-    price_containers = driver.find_elements(By.XPATH, '//div[contains(@class, "offer-card__price")]')
-
-    for price_container in price_containers:
         try:
+            price_container = price_containers.pop(0)
             car_price_element = price_container.find_element(By.XPATH,
                                                             './/p[contains(@class, "label__onLight ids_textStyle_label_medium_bold")]')
             car_price = car_price_element.text.strip()  # Remove espaços em branco extras
@@ -66,8 +66,8 @@ def download_selenium() -> List[dict]:
     return result_list
 
 @app.get("/data")
-async def get_data():
-    return download_selenium()
+async def get_data(model: str = Query(..., description="Modelo do carro")):
+    return download_selenium(model)
 
 if __name__ == "__main__":
     import uvicorn
